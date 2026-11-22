@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plants">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef2f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1a1b" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Plant Watering Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one phone-width column; a status strip, three tabs, rows you act on with the thumb, bottom sheets for everything else. */
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --ink:#14292b; --muted:#5b6f70; --line:#d5dedc;
+  --accent:#1667c5; --accent-ink:#ffffff; --accent-soft:#e2edfb;
+  --bad:#b3261e; --bad-soft:#fbe6e3; --warn:#8a5a00; --warn-soft:#fbefd2; --ok:#1f6b47; --ok-soft:#dff1e7;
+  --display:"Bricolage Grotesque","Hanken Grotesk",system-ui,sans-serif;
+  --body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f1a1b; --surface:#18272a; --ink:#e6efee; --muted:#9bb0b0; --line:#2b3d40;
+    --accent:#6aa9f5; --accent-ink:#06213f; --accent-soft:#1b3350;
+    --bad:#ff9d94; --bad-soft:#4a1f1c; --warn:#f2c46a; --warn-soft:#42320f; --ok:#7fd4a6; --ok-soft:#173a29;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f1a1b; --surface:#18272a; --ink:#e6efee; --muted:#9bb0b0; --line:#2b3d40;
+  --accent:#6aa9f5; --accent-ink:#06213f; --accent-soft:#1b3350;
+  --bad:#ff9d94; --bad-soft:#4a1f1c; --warn:#f2c46a; --warn-soft:#42320f; --ok:#7fd4a6; --ok-soft:#173a29;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) calc(96px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:14px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+h1{font-family:var(--display);font-size:26px;line-height:1.05;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.date{color:var(--muted);font-size:14px;margin-top:4px}
+.hbtns{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.season{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 12px;font-size:14px;font-weight:600;white-space:nowrap}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.stat b{font-family:var(--display);font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12.5px;color:var(--muted)}
+.stat.bad b{color:var(--bad)} .stat.warn b{color:var(--warn)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--line);border-radius:12px;padding:3px;gap:3px}
+.tabs button{border:0;background:transparent;border-radius:9px;padding:10px 4px;font-weight:600;font-size:15px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink)}
+.note{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:12px 14px;color:var(--muted);font-size:14.5px}
+.note.err{border-style:solid;border-color:var(--bad);color:var(--bad);background:var(--bad-soft)}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:6px 2px 0;font-weight:700}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:10px;border-left-width:5px}
+.row.over{border-left-color:var(--bad)} .row.today{border-left-color:var(--warn)} .row.soon{border-left-color:var(--accent)} .row.fine{border-left-color:var(--ok)}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.nm{background:none;border:0;padding:0;text-align:left;font-weight:700;font-size:16.5px;line-height:1.25;overflow-wrap:anywhere}
+.sub{color:var(--muted);font-size:13.5px;margin-top:2px;overflow-wrap:anywhere}
+.pill{font-size:12.5px;font-weight:700;border-radius:999px;padding:4px 9px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pill.over{background:var(--bad-soft);color:var(--bad)} .pill.today{background:var(--warn-soft);color:var(--warn)}
+.pill.soon{background:var(--accent-soft);color:var(--accent)} .pill.fine{background:var(--ok-soft);color:var(--ok)}
+.acts{display:flex;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:11px 14px;font-weight:700;font-size:15px;min-height:44px;flex:1}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{flex:0 0 auto;padding:8px 12px;min-height:38px;font-size:14px}
+.sug{background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 12px;font-size:14px;font-weight:600;white-space:nowrap;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.fab{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom));background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:14px 20px;font-weight:700;font-size:16px;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+.scrim{position:fixed;inset:0;background:rgba(8,20,22,.5);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.scrim[hidden]{display:none}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:88%;overflow-y:auto;border-radius:20px 20px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
+.sheet h3{font-family:var(--display);font-size:21px;margin:0;line-height:1.15;text-wrap:balance;overflow-wrap:anywhere}
+.sheet .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.x{border:1px solid var(--line);background:var(--surface);border-radius:999px;width:40px;height:40px;font-size:18px;flex:0 0 auto}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;font-weight:600;color:var(--muted)}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;color:var(--ink);width:100%;min-height:44px}
+textarea{min-height:76px;resize:vertical}
+.hint{font-size:12.5px;font-weight:500;color:var(--muted)} .hint.flag{color:var(--warn)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+dl{margin:0;display:flex;flex-direction:column;gap:10px}
+dt{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700}
+dd{margin:2px 0 0;font-size:15px}
+.src{font-size:13px;color:var(--muted)} .src a{color:var(--accent)}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));max-width:528px;margin:0 auto;background:var(--ink);color:var(--bg);border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:20;font-size:15px}
+.toast[hidden]{display:none}
+.toast button{background:none;border:0;color:inherit;font-weight:700;text-decoration:underline;padding:6px}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px)}to{transform:none}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>Plant Watering Tracker</h1><div class="date" id="date"></div></div>
+    <div class="hbtns"><button class="season" id="seasonBtn" type="button">Season</button><button class="season" id="backupBtn" type="button">Backup</button></div>
+  </header>
+  <div class="strip" id="strip"></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-due" aria-selected="true" type="button">Due</button>
+    <button role="tab" id="tab-all" aria-selected="false" type="button">All plants</button>
+    <button role="tab" id="tab-feed" aria-selected="false" type="button">Feeding</button>
+  </div>
+  <div id="status" class="note" hidden></div>
+  <main id="view" class="list"></main>
+</div>
+<button class="fab" id="addBtn" type="button">+ Add plant</button>
+<div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" hidden><span id="toastMsg"></span><button id="toastUndo" type="button">Undo</button></div>
+
+<script>
+/* ---------- Verified care library (species level). Day ranges are starting points for Delhi NCR; the soil check decides. ---------- */
+const CARE = {
+  snake:{label:"Snake plant", r:{s:[14,26],m:[21,30],w:[30,56]}, fertEvery:42,
+    method:"Soak, then let the soil dry almost completely. Pour at the soil, never into the leaf rosette. Do not mist.",
+    soil:"Gritty, fast-draining: about 2 parts cactus mix to 1 part perlite or pumice.",
+    fert:"Light feeder. Quarter to half strength balanced feed every 4 to 6 weeks, March to September. None in winter.",
+    repot:"Every 2 to 3 years, in spring, or when roots crowd or crack the pot. Likes a snug pot.",
+    pests:"Root rot from overwatering is the main risk. Mealybugs and spider mites turn up occasionally.",
+    tips:"Wrinkled leaves mean it has gone too dry. Wipe dust off the leaves now and then.",
+    src:[["White Flower Farm","https://www.whiteflowerfarm.com/snake-plant-care"],["Epic Gardening","https://www.epicgardening.com/snake-plant-mother-in-laws-tongue/"]]},
+  zz:{label:"ZZ plant", r:{s:[14,26],m:[21,30],w:[30,56]}, fertEvery:75,
+    method:"Soak, then let the soil dry right through. The rhizomes store water, so late is safer than early.",
+    soil:"Fast-draining mix with extra perlite or pumice. Root rot follows dense, wet soil.",
+    fert:"Slow grower. Half-strength feed two or three times between March and September is enough.",
+    repot:"Every 2 to 3 years, or when rhizomes press against the pot.",
+    pests:"Rarely troubled. Root rot if kept wet; occasionally mealybugs, scale or spider mites.",
+    tips:"Yellowing leaves usually mean too much water. Keep out of direct sun.",
+    src:[["UF/IFAS Extension","https://ask.ifas.ufl.edu/publication/EP480"],["Illinois Extension","https://extension.illinois.edu/blogs/good-growing/2026-01-09-houseplant-spotlight-zz-plant"]]},
+  peace:{label:"Peace lily", r:{s:[2,3],m:[4,6],w:[7,10]}, fertEvery:49,
+    method:"Keep moist but not soggy; let the surface dry slightly, then water through to runoff with room-temperature water. Empty the saucer.",
+    soil:"Airy and moisture-holding: about 2 parts cocopeat, 1 perlite, 1 compost or bark.",
+    fert:"Easily burned. Quarter-strength balanced feed every 6 to 8 weeks, March to September. Pause in winter.",
+    repot:"When roots show through the drainage holes or circle the surface. Go only 2 to 5 cm wider.",
+    pests:"Fungus gnats (wet soil), mealybugs, spider mites, scale.",
+    tips:"A droop is the cue to water, but do not wait for it every time. Bright indirect light; direct sun scorches. Brown tips usually mean too much fertiliser.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/peace-lily/"]]},
+  lucky:{label:"Lucky bamboo (in water)", r:{s:[7,14],m:[7,14],w:[7,14]}, fertEvery:60,
+    method:"Change the water every 7 to 14 days and rinse the vase and pebbles. Keep roots fully covered; top up in between.",
+    soil:"Pebbles and water. Use RO or filtered water, or tap water left out overnight. Fluoride does not evaporate, so filtered is safer.",
+    fert:"Needs very little. One drop of liquid feed, heavily diluted, every month or two.",
+    repot:"Rarely. Rinse roots and refresh pebbles when the water turns cloudy or smells.",
+    pests:"Spider mites and mealybugs. Algae builds up in clear glass kept in bright light.",
+    tips:"Yellow leaves point to too much light, fertiliser, or chemicals in the water. No direct sun.",
+    src:[["The Old Farmer's Almanac","https://www.almanac.com/news/gardening/gardening-advice/how-grow-lucky-bamboo"],["Epic Gardening","https://www.epicgardening.com/lucky-bamboo-care/"]]},
+  rubber:{label:"Rubber plant", r:{s:[7,10],m:[10,14],w:[14,21]}, fertEvery:30,
+    method:"Water thoroughly, then let the top few centimetres dry. Empty the saucer.",
+    soil:"Potting mix with perlite, about 3 to 1; a little bark helps air reach the roots.",
+    fert:"Half-strength balanced feed about monthly, March to September. Feed less often in lower light.",
+    repot:"Every 2 to 3 years, in late winter or early spring. Dislikes root disturbance.",
+    pests:"Mealybugs, scale, spider mites.",
+    tips:"Leaf drop follows cold drafts, dry air, low light or being moved. Wipe the leaves; rotate monthly.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/rubber-plant/"]]},
+  dieff:{label:"Dieffenbachia", r:{s:[5,7],m:[7,10],w:[10,14]}, fertEvery:35,
+    method:"Water thoroughly, then wait until the top 2 to 3 cm are dry. Never leave water in the saucer.",
+    soil:"Well-draining potting mix with perlite.",
+    fert:"Half-strength foliage feed every 4 to 6 weeks, March to September.",
+    repot:"Every 1 to 2 years, in early spring, if roots have filled the pot.",
+    pests:"Mealybugs, aphids, spider mites. Root rot and fungus gnats if kept wet.",
+    tips:"Sap irritates skin and eyes and the plant is toxic if chewed. Wear gloves when cutting; keep away from children and pets.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/dieffenbachia/"]]},
+  aglao:{label:"Aglaonema (Chinese evergreen)", r:{s:[4,7],m:[7,10],w:[10,14]}, fertEvery:35,
+    method:"Water when the top 3 to 5 cm are dry. Use room-temperature water; avoid soggy soil.",
+    soil:"About 60% potting mix, 25% perlite, 15% bark.",
+    fert:"Half-strength balanced feed every 4 to 6 weeks, March to September. Too much burns the leaf edges.",
+    repot:"Every 2 to 3 years or when root-bound.",
+    pests:"Mealybugs, aphids, scale, mites.",
+    tips:"Chilling-sensitive: keep it above about 13°C and out of cold drafts. No direct sun on the leaves.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/chinese-evergreen/"]]},
+  pothos:{label:"Pothos (money plant)", r:{s:[3,7],m:[5,10],w:[10,14]}, fertEvery:45,
+    method:"Water when the top 3 to 4 cm are dry. Brighter spots dry faster.",
+    soil:"All-purpose potting mix with perlite, about 3 to 1.",
+    fert:"Half-strength balanced feed every 4 to 8 weeks, March to September. None in winter.",
+    repot:"Every 1 to 2 years, depending on growth.",
+    pests:"Mealybugs, scale, spider mites. Fungus gnats if kept wet.",
+    tips:"Yellow leaves usually mean overwatering. Trim long vines for bushier growth.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/how-to-grow-pothos-indoors/"]]},
+  philo:{label:"Philodendron", r:{s:[5,7],m:[7,10],w:[10,14]}, fertEvery:30,
+    method:"Let the top 2 to 3 cm dry, then water through to runoff. Let it dry further in winter.",
+    soil:"2 parts cocopeat or peat, 1 perlite, 1 bark.",
+    fert:"Diluted balanced liquid feed about monthly, March to September.",
+    repot:"Every 1 to 2 years; go up one pot size only.",
+    pests:"Aphids, mealybugs, scale, spider mites.",
+    tips:"Yellow leaves mean too wet, brown leaves too dry. Wipe leaves; rotate monthly.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/philodendron/"],["SDSU Extension","https://extension.sdstate.edu/philodendron-houseplant-how"]]},
+  bamboopalm:{label:"Bamboo palm", r:{s:[2,4],m:[4,6],w:[7,10]}, fertEvery:42,
+    method:"Water thoroughly when the surface dries. Never let it sit in water; never let it dry out fully.",
+    soil:"Peat or cocopeat, perlite and loam; must drain well.",
+    fert:"Palms are harmed by excess. Half-strength liquid feed every 6 weeks March to September, or slow-release palm fertiliser 2 to 3 times a season.",
+    repot:"Every 2 to 3 years in spring or early summer. Roots are fragile.",
+    pests:"Spider mites, mealybugs, scale. Mites thrive in dry, warm air.",
+    tips:"Bright indirect light. Raise humidity with a pebble tray or regular misting; rinse fronds to keep mites down.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/indoor-palms/"]]},
+  areca:{label:"Areca palm", r:{s:[2,4],m:[5,7],w:[7,10]}, fertEvery:42,
+    method:"Keep evenly moist in the warm months; in winter let the surface dry first. Water to runoff and empty the saucer.",
+    soil:"About 2 parts cocopeat, 1 perlite, 1 compost or bark.",
+    fert:"Sensitive to overfeeding. Half-strength liquid feed every 4 to 6 weeks March to September, or slow-release palm fertiliser 2 to 3 times a season.",
+    repot:"Every 2 to 3 years in spring or early summer. Handle roots gently.",
+    pests:"Very prone to spider mites; also mealybugs and scale.",
+    tips:"Needs bright indirect light. Brown tips come from dry air, fertiliser salts or hard water. Check frond undersides for fine webbing.",
+    src:[["Clemson HGIC","https://hgic.clemson.edu/factsheet/indoor-palms/"]]},
+  custom:{label:"Other plant", r:null, fertEvery:42, method:"", soil:"", fert:"", repot:"", pests:"", tips:"", src:[]}
+};
+const SEASONS = {s:"Summer", m:"Monsoon", w:"Winter"};
+
+/* ---------- Date logic (pure) ---------- */
+const pad = n => String(n).padStart(2,"0");
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parse = s => { const [y,m,d] = s.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
+const diff = (a,b) => Math.round((parse(a)-parse(b))/864e5);
+const todayIso = () => iso(new Date());
+function seasonOf(s){ const d = parse(s), md = (d.getMonth()+1)*100+d.getDate();
+  if (md>=315 && md<=630) return "s"; if (md>=701 && md<=930) return "m"; return "w"; }
+function dueOf(p,season){ if (p.defer) return p.defer; if (!p.last) return todayIso(); return addDays(p.last, Number(p.iv[season])||7); }
+function fertDue(p,today){
+  let d = p.fertLast ? addDays(p.fertLast, Number(p.fertEvery)||42) : today;
+  if (d < today) d = today;
+  const m = parse(d).getMonth()+1;
+  if (m<3) return parse(d).getFullYear()+"-03-01";
+  if (m>9) return (parse(d).getFullYear()+1)+"-03-01";
+  return d;
+}
+const fmt = s => parse(s).toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"});
+const fmtY = s => parse(s).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- Storage: this phone only (localStorage). Nothing is sent anywhere. ---------- */
+const KEY = "plantTracker.v1";
+const store = (() => {
+  let state = {plants:{}, settings:{season:"auto"}, lastBackup:null}, ok = true; const subs = [];
+  try { const raw = localStorage.getItem(KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(e){ ok = false; }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){ ok = false; throw {code:"storage"}; } };
+  const fire = () => subs.forEach(f => f());
+  return { get ok(){ return ok; }, get state(){ return state; },
+    setPlant(id,data){ state.plants[id] = data; save(); fire(); }, delPlant(id){ delete state.plants[id]; save(); fire(); },
+    setSettings(s){ state.settings = s; save(); fire(); }, markBackup(){ state.lastBackup = todayIso(); save(); fire(); },
+    replace(b){ state = {plants:b.plants, settings:b.settings||{season:"auto"}, lastBackup:todayIso()}; save(); fire(); },
+    sub(f){ subs.push(f); } };
+})();
+/* ---------- State ---------- */
+let plants = new Map(), settings = {season:"auto"}, loaded = false, tab = "due", locFilter = "All", undo = null;
+const $ = id => document.getElementById(id);
+const season = () => settings.season && settings.season!=="auto" ? settings.season : seasonOf(todayIso());
+const chains = new Map();
+function write(id, data){ // one write at a time per document
+  try { store.setPlant(id, data); } catch(e){ showErr("Could not save on this phone. Storage may be full or blocked (Private Browsing blocks it)."); }
+  return Promise.resolve();
+}
+function showErr(msg){ const s=$("status"); s.hidden=false; s.className="note err"; s.textContent=msg; }
+function clean(p){ const o = JSON.parse(JSON.stringify(p)); delete o.id; return o; }
+
+/* ---------- Actions ---------- */
+function water(id, date){
+  const p = plants.get(id); if (!p) return;
+  const before = clean(p), n = clean(p), d = date || todayIso();
+  if (p.deferred && p.last){ n.streak = (p.streak||0)+1; n.gaps = [...(p.gaps||[]), diff(d,p.last)].slice(-3); }
+  else { n.streak = 0; n.gaps = []; }
+  n.last = d; n.defer = null; n.deferred = false; n.due = dueOf(n, season());
+  write(id,n); toast("Watered "+p.name+". Next due "+fmt(n.due)+".", () => write(id,before));
+}
+function defer(id, days){
+  const p = plants.get(id); if (!p) return;
+  const before = clean(p), n = clean(p), t = todayIso(), cur = dueOf(p, season());
+  n.defer = addDays(cur > t ? cur : t, days); n.deferred = true; n.due = n.defer;
+  write(id,n); closeSheet(); toast("Deferred "+p.name+" to "+fmt(n.due)+".", () => write(id,before));
+}
+function feed(id){
+  const p = plants.get(id); if (!p) return; const before = clean(p), n = clean(p);
+  n.fertLast = todayIso(); write(id,n); toast("Fed "+p.name+".", () => write(id,before));
+}
+function applySuggestion(id, accept){
+  const p = plants.get(id); if (!p) return; const n = clean(p), s = season();
+  if (accept){ n.iv[s] = suggestion(p); if (!n.defer) n.due = dueOf(n,s); }
+  n.streak = 0; n.gaps = []; write(id,n);
+}
+function suggestion(p){ const g = p.gaps||[]; if ((p.streak||0)<2 || g.length<2) return 0;
+  const avg = Math.round(g.reduce((a,b)=>a+b,0)/g.length); return avg > Number(p.iv[season()]) ? avg : 0; }
+function toast(msg, onUndo){ $("toastMsg").textContent = msg; $("toast").hidden = false; undo = onUndo; $("toastUndo").hidden = !onUndo;
+  clearTimeout(toast.t); toast.t = setTimeout(()=>{ $("toast").hidden = true; undo = null; }, 6000); }
+$("toastUndo").onclick = () => { if (undo) undo(); $("toast").hidden = true; undo = null; };
+
+/* ---------- Render ---------- */
+function statusOf(due,t){ const n = diff(due,t);
+  if (n<0) return {k:"over", t:(-n)+(n===-1?" day":" days")+" overdue"};
+  if (n===0) return {k:"today", t:"Due today"};
+  if (n<=3) return {k:"soon", t:"In "+n+(n===1?" day":" days")};
+  return {k:"fine", t:"In "+n+" days"}; }
+function rowHtml(p, withActs){
+  const s = season(), t = todayIso(), due = dueOf(p,s), st = statusOf(due,t), sug = suggestion(p);
+  return `<div class="row ${st.k}">
+    <div class="top"><div><button class="nm" type="button" data-open="${p.id}">${esc(p.name)}</button>
+      <div class="sub">${esc(p.loc)} · ${esc(p.pot||"pot")} · every ${esc(p.iv[s])} d${p.defer?" · deferred":""}</div>
+      <div class="sub">Last watered ${p.last?fmt(p.last):"not logged"} · due ${fmt(due)}</div></div>
+      <span class="pill ${st.k}">${st.t}</span></div>
+    ${sug?`<div class="sug"><span>You deferred this plant ${p.streak} cycles running; the real gap averaged ${sug} days. Change the ${SEASONS[s].toLowerCase()} interval from ${esc(p.iv[s])} to ${sug} days?</span>
+      <div class="acts"><button class="btn sm pri" type="button" data-sug="${p.id}">Change to ${sug}</button><button class="btn sm" type="button" data-keep="${p.id}">Keep ${esc(p.iv[s])}</button></div></div>`:""}
+    ${withActs?`<div class="acts"><button class="btn pri" type="button" data-water="${p.id}">Watered</button><button class="btn" type="button" data-defer="${p.id}">Soil still damp</button></div>`:""}
+  </div>`;
+}
+function render(){
+  const t = todayIso(), s = season();
+  $("date").textContent = new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"});
+  $("seasonBtn").textContent = SEASONS[s]+" schedule"+(settings.season==="auto"||!settings.season?"":" (set)");
+  const all = [...plants.values()].map(p => ({p, due:dueOf(p,s)})).sort((a,b)=> a.due<b.due?-1:a.due>b.due?1:a.p.name.localeCompare(b.p.name));
+  const over = all.filter(x=>x.due<t), today = all.filter(x=>x.due===t), soon = all.filter(x=>x.due>t && diff(x.due,t)<=3);
+  $("strip").innerHTML = `<div class="stat ${over.length?"bad":""}"><b>${over.length}</b><span>Overdue</span></div>
+    <div class="stat ${today.length?"warn":""}"><b>${today.length}</b><span>Due today</span></div>
+    <div class="stat"><b>${soon.length}</b><span>Next 3 days</span></div>`;
+  for (const k of ["due","all","feed"]) $("tab-"+k).setAttribute("aria-selected", String(tab===k));
+  const v = $("view"); let h = "";
+  if (!loaded){ v.innerHTML = ""; return; }
+  if (!plants.size){ v.innerHTML = `<div class="note">No plants on this phone yet. Restore your backup file, or tap Add plant to start fresh.</div><button class="btn pri" type="button" data-bk="open">Restore from backup</button>`; return; }
+  if (tab==="due"){
+    const sec = (title,arr) => arr.length ? `<h2>${title} · ${arr.length}</h2>`+arr.map(x=>rowHtml(x.p,true)).join("") : "";
+    const shown = new Set([...over,...today,...soon].map(x=>x.p.id));
+    const tune = all.filter(x => suggestion(x.p) && !shown.has(x.p.id));
+    h = sec("Overdue",over)+sec("Due today",today)+sec("Next 3 days",soon)+(tune.length?`<h2>Interval suggestions · ${tune.length}</h2>`+tune.map(x=>rowHtml(x.p,false)).join(""):"");
+    if (!over.length && !today.length) h = `<div class="note">Nothing to water today.${all.length?` Next up: ${esc(all.find(x=>x.due>t)?.p.name||"")} on ${fmt((all.find(x=>x.due>t)||all[0]).due)}.`:""}</div>`+h;
+    h += `<div class="note">Check the soil with the chopstick first. If it is still damp, tap Soil still damp and pick when to check again.</div>`;
+  } else if (tab==="all"){
+    const locs = {}; all.forEach(x => locs[x.p.loc] = (locs[x.p.loc]||0)+1);
+    if (locFilter!=="All" && !locs[locFilter]) locFilter = "All";
+    h = `<div class="chips">`+[["All",all.length],...Object.entries(locs).sort()].map(([l,n]) =>
+      `<button class="chip" type="button" data-loc="${esc(l)}" aria-pressed="${locFilter===l}">${esc(l)} ${n}</button>`).join("")+`</div>`;
+    h += all.filter(x=>locFilter==="All"||x.p.loc===locFilter).map(x=>rowHtml(x.p,false)).join("");
+  } else {
+    const m = parse(t).getMonth()+1, inSeason = m>=3 && m<=9;
+    h = `<div class="note">${inSeason?"Feeding season runs March to September.":"Feeding is paused until March. Indoor plants rest from October to February, and fertiliser now can burn roots."}</div>`;
+    const f = [...plants.values()].map(p=>({p,d:fertDue(p,t)})).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+    h += f.map(({p,d}) => { const due = inSeason && d<=t;
+      return `<div class="row ${due?"today":"fine"}"><div class="top"><div><button class="nm" type="button" data-open="${p.id}">${esc(p.name)}</button>
+        <div class="sub">${esc(p.loc)} · last fed ${p.fertLast?fmtY(p.fertLast):"not logged"} · every ${esc(p.fertEvery)} d in season</div>
+        <div class="sub">${esc((CARE[p.sp]||CARE.custom).fert)}</div></div>
+        <span class="pill ${due?"today":"fine"}">${due?"Feed now":fmtY(d)}</span></div>
+        ${inSeason?`<div class="acts"><button class="btn ${due?"pri":""}" type="button" data-feed="${p.id}">Fed today</button></div>`:""}</div>`; }).join("");
+  }
+  v.innerHTML = h;
+}
+
+/* ---------- Sheets ---------- */
+function openSheet(html){ $("sheet").innerHTML = html; $("scrim").hidden = false; $("sheet").scrollTop = 0; }
+function closeSheet(){ $("scrim").hidden = true; $("sheet").innerHTML = ""; }
+$("scrim").addEventListener("click", e => { if (e.target===$("scrim")) closeSheet(); });
+function head(title){ return `<div class="head"><h3>${title}</h3><button class="x" type="button" data-close aria-label="Close">✕</button></div>`; }
+function deferSheet(id){
+  const p = plants.get(id), t = todayIso(), cur = dueOf(p,season()), base = cur>t?cur:t;
+  openSheet(head("Check "+esc(p.name)+" again in")+`<div class="grid5">`+[1,2,3,5,7].map(n =>
+    `<button class="btn" type="button" data-dodefer="${id}" data-n="${n}">${n} d</button>`).join("")+`</div>
+    <div class="hint">Counts from ${cur>t?"the current due date, "+fmt(cur):"today"}. For example 2 days moves it to ${fmt(addDays(base,2))}.</div>`);
+}
+function seasonSheet(){
+  const auto = seasonOf(todayIso());
+  openSheet(head("Watering schedule")+`<div class="hint">Automatic uses summer from 15 March, monsoon from 1 July and winter from 1 October. Switch by hand if the weather turns early or late.</div>
+    <div class="list">`+[["auto","Automatic (now "+SEASONS[auto]+")"],["s","Summer"],["m","Monsoon"],["w","Winter"]].map(([k,l]) =>
+    `<button class="btn ${ (settings.season||"auto")===k?"pri":""}" type="button" data-season="${k}">${l}</button>`).join("")+`</div>`);
+}
+function plantSheet(id){
+  const isNew = !id, s = season();
+  const p = isNew ? {name:"",sp:"snake",loc:locFilter!=="All"?locFilter:"",pot:"Plastic",light:"",iv:{s:18,m:26,w:30},last:todayIso(),defer:null,fertLast:null,fertEvery:42,notes:""} : plants.get(id);
+  if (!p) return; const c = CARE[p.sp]||CARE.custom;
+  const locs = [...new Set([...plants.values()].map(x=>x.loc))].sort();
+  const ivField = k => { const r = c.r && c.r[k], v = Number(p.iv[k]), flag = r && (v<r[0]||v>r[1]);
+    return `<label>${SEASONS[k]}${k===s?" (now)":""}<input id="f-iv-${k}" type="number" inputmode="numeric" min="1" max="120" value="${esc(p.iv[k])}">
+      <span class="hint ${flag?"flag":""}" id="h-iv-${k}">${r?(flag?"Outside ":"Typical ")+r[0]+"–"+r[1]+" d":"Your call"}</span></label>`; };
+  openSheet(head(isNew?"Add a plant":esc(p.name))+`
+  <div class="card">
+    <label>Name<input id="f-name" type="text" value="${esc(p.name)}" placeholder="e.g. Snake plant, blue pot" autocomplete="off"></label>
+    <label>Plant type<select id="f-sp">${Object.entries(CARE).map(([k,v])=>`<option value="${k}" ${k===p.sp?"selected":""}>${esc(v.label)}</option>`).join("")}</select>
+      <span class="hint">${isNew?"Picking a type fills in typical intervals and the care guide.":"Changing the type changes the care guide below after you save."}</span></label>
+    <label>Location<select id="f-loc">${locs.map(l=>`<option ${l===p.loc?"selected":""}>${esc(l)}</option>`).join("")}<option value="__new">New location…</option></select></label>
+    <label id="newLocWrap" hidden>New location name<input id="f-newloc" type="text" autocomplete="off"></label>
+    <label>Light at this spot<input id="f-light" type="text" value="${esc(p.light)}" placeholder="e.g. Bright indirect light" autocomplete="off">
+      <span class="hint">Fills in from other plants at the location when you move it. Brighter spots dry faster.</span></label>
+    <label>Pot type<select id="f-pot">${["Plastic","Ceramic","Terracotta","Glass/Ceramic","Metal","Other"].map(o=>`<option ${o===p.pot?"selected":""}>${o}</option>`).join("")}</select></label>
+  </div>
+  <div class="card">
+    <div><b>Water every (days)</b><div class="hint">The app switches between these as the season changes.</div></div>
+    <div class="grid">${ivField("s")}${ivField("m")}${ivField("w")}</div>
+    <label>Last watered<input id="f-last" type="date" value="${esc(p.last||"")}" max="${todayIso()}"></label>
+    ${!isNew?`<div class="hint">Next due ${fmt(dueOf(p,s))}${p.defer?" (deferred)":""}.</div>`:""}
+    ${!isNew&&p.defer?`<button class="btn sm" type="button" data-cleardefer="${id}">Clear deferral</button>`:""}
+  </div>
+  <div class="card">
+    <div><b>Feeding</b><div class="hint">Counted only from March to September.</div></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <label>Last fed<input id="f-fert" type="date" value="${esc(p.fertLast||"")}" max="${todayIso()}"></label>
+      <label>Every (days)<input id="f-fertEvery" type="number" inputmode="numeric" min="7" max="365" value="${esc(p.fertEvery)}"></label>
+    </div>
+  </div>
+  <div class="card"><label>My notes<textarea id="f-notes">${esc(p.notes||"")}</textarea></label></div>
+  <div class="acts"><button class="btn pri" type="button" data-save="${id||""}">${isNew?"Add plant":"Save changes"}</button></div>
+  ${c.method?`<div class="card"><b>Care guide: ${esc(c.label)}</b><dl>
+    <div><dt>Watering</dt><dd>${esc(c.method)}</dd></div><div><dt>Soil</dt><dd>${esc(c.soil)}</dd></div>
+    <div><dt>Fertiliser</dt><dd>${esc(c.fert)}</dd></div><div><dt>Repotting</dt><dd>${esc(c.repot)}</dd></div>
+    <div><dt>Pests and problems</dt><dd>${esc(c.pests)}</dd></div><div><dt>Tips</dt><dd>${esc(c.tips)}</dd></div></dl>
+    <div class="src">Checked against: ${c.src.map(([n,u])=>`<a href="${u}" target="_blank" rel="noopener">${esc(n)}</a>`).join(", ")}. Day counts are starting points; the soil check decides.</div></div>`:""}
+  ${!isNew?`<button class="btn danger" type="button" data-del="${id}">Delete this plant</button>`:""}`);
+  const sp = $("f-sp"), loc = $("f-loc");
+  if (!locs.length){ loc.value="__new"; $("newLocWrap").hidden=false; }
+  loc.onchange = () => { $("newLocWrap").hidden = loc.value!=="__new";
+    if (loc.value!=="__new"){ const cnt={}; [...plants.values()].filter(x=>x.loc===loc.value&&x.id!==id).forEach(x=>cnt[x.light]=(cnt[x.light]||0)+1);
+      const best = Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0]; if (best) $("f-light").value = best[0]; } };
+  sp.onchange = () => { const r = (CARE[sp.value]||{}).r;
+    for (const k of ["s","m","w"]){ if (isNew && r) $("f-iv-"+k).value = Math.round((r[k][0]+r[k][1])/2); $("h-iv-"+k).className="hint"; $("h-iv-"+k).textContent = r ? "Typical "+r[k][0]+"–"+r[k][1]+" d" : "Your call"; }
+    if (isNew) $("f-fertEvery").value = (CARE[sp.value]||CARE.custom).fertEvery; };
+  if (isNew && locs.length) loc.onchange();
+}
+function savePlant(id){
+  const name = $("f-name").value.trim(); if (!name){ $("f-name").focus(); $("f-name").placeholder="Give the plant a name"; return; }
+  let loc = $("f-loc").value; if (loc==="__new") loc = $("f-newloc").value.trim(); if (!loc){ $("newLocWrap").hidden=false; $("f-newloc").focus(); return; }
+  const num = (el,def) => { const v = Math.round(Number($(el).value)); return v>0 ? v : def; };
+  const old = id ? plants.get(id) : null, n = old ? clean(old) : {defer:null,deferred:false,streak:0,gaps:[]};
+  const newLast = $("f-last").value || null;
+  if (old && newLast!==old.last){ n.defer=null; n.deferred=false; }
+  Object.assign(n,{name, sp:$("f-sp").value, loc, pot:$("f-pot").value, light:$("f-light").value.trim(),
+    iv:{s:num("f-iv-s",7),m:num("f-iv-m",7),w:num("f-iv-w",7)}, last:newLast, fertLast:$("f-fert").value||null,
+    fertEvery:num("f-fertEvery",42), notes:$("f-notes").value.trim()});
+  n.due = dueOf(n, season());
+  const docId = id || ("n"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  write(docId,n); closeSheet(); toast(id?"Saved "+name+".":"Added "+name+".", null);
+}
+
+/* ---------- Events ---------- */
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
+  if (b.id==="tab-due"||b.id==="tab-all"||b.id==="tab-feed"){ tab = b.id.slice(4); render(); }
+  else if (b.id==="backupBtn") backupSheet();
+  else if (d.bk) doBackup(d.bk);
+  else if (b.id==="doRestore") restoreFrom($("f-restore").value);
+  else if (b.id==="addBtn"){ plantSheet(null); }
+  else if (b.id==="seasonBtn"){ seasonSheet(); }
+  else if ("close" in d) closeSheet();
+  else if (d.water) water(d.water);
+  else if (d.defer) deferSheet(d.defer);
+  else if (d.dodefer) defer(d.dodefer, Number(d.n));
+  else if (d.feed) feed(d.feed);
+  else if (d.sug) applySuggestion(d.sug,true);
+  else if (d.keep) applySuggestion(d.keep,false);
+  else if (d.open) plantSheet(d.open);
+  else if (d.loc){ locFilter = d.loc; render(); }
+  else if ("save" in d) savePlant(d.save||null);
+  else if (d.cleardefer){ const p = plants.get(d.cleardefer), n = clean(p); n.defer=null; n.deferred=false; n.due=dueOf(n,season()); write(d.cleardefer,n); closeSheet(); }
+  else if (d.season){ settings = {season:d.season}; store.setSettings(settings); closeSheet(); render(); syncDue(); }
+  else if (d.del){ if (b.dataset.armed){ const p = plants.get(d.del), before = clean(p); store.delPlant(d.del); closeSheet(); toast("Deleted "+p.name+".", () => write(d.del,before)); }
+    else { b.dataset.armed = "1"; b.textContent = "Tap again to delete"; } }
+});
+
+/* Keep the stored due date in step (the morning alert reads it). Writes only when a value changed. */
+let syncing = false;
+async function syncDue(){ if (syncing) return; syncing = true; const s = season();
+  for (const p of plants.values()){ const d = dueOf(p,s); if (p.due!==d){ const n = clean(p); n.due = d; await write(p.id,n); } }
+  syncing = false; }
+
+/* ---------- Backup and restore ---------- */
+function backupJson(){ return JSON.stringify({app:"plant-watering-tracker",version:1,exported:todayIso(),settings:store.state.settings,plants:store.state.plants},null,1); }
+function backupSheet(){
+  const n = Object.keys(store.state.plants).length, lb = store.state.lastBackup;
+  openSheet(head("Backup and restore")+`<div class="hint">Your plant data lives only in this app on this phone. A backup file protects it if you change phones or remove the icon.</div>
+  <div class="card"><b>Back up ${n} plants</b><div class="hint">Last backup: ${lb?fmtY(lb):"never"}.</div>
+    <div class="acts"><button class="btn pri" type="button" data-bk="share">Save backup file</button><button class="btn" type="button" data-bk="copy">Copy as text</button></div></div>
+  <div class="card"><b>Restore</b><div class="hint">Replaces everything in the app with the backup.</div>
+    <label>Choose a backup file<input id="f-file" type="file" accept=".json,application/json,text/plain"></label>
+    <label>Or paste backup text<textarea id="f-restore" placeholder='{"app":"plant-watering-tracker", …}'></textarea></label>
+    <button class="btn" type="button" id="doRestore">Restore pasted text</button><div class="hint flag" id="restoreMsg"></div></div>`);
+  $("f-file").onchange = e => { const f = e.target.files[0]; if (f) f.text().then(restoreFrom); };
+}
+async function doBackup(kind){
+  if (kind==="open") return backupSheet();
+  const text = backupJson(), name = "plant-tracker-backup-"+todayIso()+".json";
+  try {
+    if (kind==="share"){
+      const file = new File([text], name, {type:"application/json"});
+      if (navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file], title:"Plant tracker backup"});
+      else { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text],{type:"application/json"})); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+    } else await navigator.clipboard.writeText(text);
+    store.markBackup(); closeSheet(); toast(kind==="share"?"Backup saved.":"Backup copied. Paste it into Notes or Files.", null);
+  } catch(e){ if (e && e.name==="AbortError") return; const m = $("restoreMsg"); if (m) m.textContent = "Could not "+(kind==="share"?"save the file":"copy")+". Try the other button."; }
+}
+function restoreFrom(text){
+  let b; try { b = JSON.parse(text); } catch(e){ b = null; }
+  const okShape = b && b.plants && typeof b.plants==="object" && !Array.isArray(b.plants) && Object.values(b.plants).every(p => p && typeof p.name==="string" && p.iv);
+  if (!okShape){ const m = $("restoreMsg"); if (m) m.textContent = "That is not a plant tracker backup. Nothing was changed."; return; }
+  try { store.replace(b); } catch(e){ showErr("Could not save on this phone."); return; }
+  closeSheet(); toast("Restored "+Object.keys(b.plants).length+" plants.", null);
+}
+
+/* ---------- Start ---------- */
+function load(){ plants = new Map(Object.entries(store.state.plants).map(([id,p]) => [id, Object.assign({iv:{s:7,m:7,w:7}}, p, {id})]));
+  settings = store.state.settings || {season:"auto"}; loaded = true; render(); }
+store.sub(load); load(); syncDue();
+if (!store.ok) showErr("This browser is blocking storage, so changes will not be kept. Turn off Private Browsing and reopen.");
+else if (plants.size && (!store.state.lastBackup || diff(todayIso(), store.state.lastBackup) > 30)){ const s = $("status"); s.hidden = false; s.textContent = "No backup in the last 30 days. Tap Backup to save one."; }
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+if ("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
